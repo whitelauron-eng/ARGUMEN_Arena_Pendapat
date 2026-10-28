@@ -1,33 +1,442 @@
-const $=s=>document.querySelector(s);let cells=[],hand=[],rhand=[],selected=null,round=1,playerTurn=true,done=false;
-const pool=[
-{id:"p1",type:"Pendapat",title:"Buku menambah ilmu",text:"Membaca buku bermanfaat untuk belajar.",power:3,s:"✦",tags:["read"]},
-{id:"p2",type:"Pendapat",title:"Waktu harus seimbang",text:"Belajar dan bermain perlu seimbang.",power:3,s:"◈",tags:["balance"]},
-{id:"p3",type:"Pendapat",title:"Perpustakaan penting",text:"Perpustakaan perlu dijaga bersama.",power:3,s:"⌂",tags:["library"]},
-{id:"a1",type:"Alasan",title:"Kosakata bertambah",text:"Bacaan mengenalkan kata-kata baru.",power:2,s:"✎",tags:["read"]},
-{id:"a2",type:"Alasan",title:"Bisa mengatur waktu",text:"Kegiatan seimbang menjaga tanggung jawab.",power:2,s:"◷",tags:["balance"]},
-{id:"a3",type:"Alasan",title:"Tempat belajar bersama",text:"Perpustakaan memberi ruang membaca.",power:2,s:"⌘",tags:["library"]},
-{id:"b1",type:"Bukti",title:"Informasi dari bacaan",text:"Membaca memperkaya kosakata.",power:2,s:"▤",tags:["read"]},
-{id:"b2",type:"Bukti",title:"Ada waktu untuk semua",text:"Jadwal membantu belajar dan beristirahat.",power:2,s:"◷",tags:["balance"]},
-{id:"b3",type:"Bukti",title:"Buku bisa dipinjam",text:"Perpustakaan menyediakan buku.",power:2,s:"▣",tags:["library"]},
-{id:"s1",type:"Sanggahan",title:"Periksa pendapat",text:"Tanggapi dengan sopan dan alasan jelas.",power:3,s:"↗",tags:["any"]},
-{id:"s2",type:"Sanggahan",title:"Ada sisi lain",text:"Gim juga melatih strategi jika waktunya teratur.",power:3,s:"⇄",tags:["balance","read"]},
-{id:"a4",type:"Alasan",title:"Melatih berpikir",text:"Kita memahami dan membandingkan informasi.",power:2,s:"◎",tags:["read"]}];
-const rivals=[
-{id:"r1",type:"Pendapat",title:"Bermain itu menyenangkan",text:"Gim bisa menjadi hiburan.",power:3,s:"✦",tags:["play"]},
-{id:"r2",type:"Alasan",title:"Belajar strategi",text:"Gim bisa melatih pemecahan masalah.",power:2,s:"⌘",tags:["play"]},
-{id:"r3",type:"Bukti",title:"Atur waktu bermain",text:"Aturan waktu menjaga keseimbangan.",power:2,s:"◷",tags:["balance"]},
-{id:"r4",type:"Sanggahan",title:"Tidak harus memilih",text:"Buku dan gim bisa sama-sama bermanfaat.",power:3,s:"⇄",tags:["any"]},
-{id:"r5",type:"Pendapat",title:"Jaga perpustakaan",text:"Buku dan fasilitas perlu dirawat.",power:3,s:"⌂",tags:["library"]},
-{id:"r6",type:"Alasan",title:"Dipakai bersama",text:"Merawat buku membuatnya awet.",power:2,s:"✎",tags:["library"]}];
-function mix(a){return [...a].sort(()=>Math.random()-.5)}function say(t){$("#log").textContent=t}
-function counts(){let p=cells.filter(x=>x.owner==="p").length,r=cells.filter(x=>x.owner==="r").length;$("#ps").textContent=p+" petak";$("#rs").textContent=r+" petak";return{p,r}}
-function bonus(card,owner){let own=cells.filter(c=>c.owner===owner&&c.card),b=0;if(own.some(c=>card.tags.includes("any")||c.card.tags.includes("any")||c.card.tags.some(t=>card.tags.includes(t))))b++;let types=new Set(own.map(c=>c.card.type));if(card.type==="Alasan"&&types.has("Pendapat")||card.type==="Bukti"&&types.has("Alasan"))b+=2;if(card.type==="Sanggahan"&&cells.some(c=>c.owner&&c.owner!==owner&&c.card.type==="Pendapat"))b++;return b}
-function render(){let board=$("#board");board.innerHTML="";cells.forEach((c,i)=>{let b=document.createElement("button");b.className="cell"+(c.owner?" "+(c.owner==="p"?"player":"rival"):"");b.disabled=!!c.owner||!playerTurn||selected===null||done;b.innerHTML=c.owner?`<span class="ct">${c.card.type.toUpperCase()} · POW ${c.power}</span><strong class="ctitle">${c.card.title}</strong><span class="ctext">${c.card.text}</span><span class="owner">${c.owner==="p"?"KAMU":"RAKA"}</span>`:`<small>PETAK ${String(i+1).padStart(2,"0")}</small>`;b.onclick=()=>play(i);board.appendChild(b)});
-let h=$("#hand");h.innerHTML="";hand.forEach((c,i)=>{let b=document.createElement("button");b.className="card"+(selected===i?" sel":"");b.disabled=!playerTurn||done;b.innerHTML=`<span class="badge ${c.type}">${c.type.toUpperCase()}</span><span class="symbol">${c.s}</span><strong>${c.title}</strong><p>${c.text}</p><span class="power">KEKUATAN ${c.power}</span>`;b.onclick=()=>{selected=selected===i?null:i;$("#hint").textContent=selected===null?"Belum ada kartu yang dipilih.":`Kartu “${c.title}” dipilih. Pilih petak kosong.`;render()};h.appendChild(b)});counts();$("#round").textContent=Math.min(round,6)}
-function play(i){if(selected===null||!playerTurn||done)return;let c=hand[selected],b=bonus(c,"p");cells[i]={owner:"p",card:c,power:c.power+b};hand.splice(selected,1);selected=null;playerTurn=false;$("#turn").textContent="GILIRAN RAKA";say(`Kamu memainkan ${c.type.toLowerCase()} “${c.title}”${b?" dengan bonus +"+b:""}. Raka sedang berpikir…`);render();setTimeout(rivalMove,450)}
-function rivalMove(){if(done)return;let open=cells.map((c,i)=>c.owner?null:i).filter(i=>i!==null);if(!open.length){end();return}let best=null;rhand.forEach((c,j)=>open.forEach(i=>{let val=c.power+bonus(c,"r")+Math.random()*1.1;if(!best||val>best.val)best={c,j,i,val}}));if(!best){end();return}let b=bonus(best.c,"r");cells[best.i]={owner:"r",card:best.c,power:best.c.power+b};rhand.splice(best.j,1);say(`Raka memainkan ${best.c.type.toLowerCase()} “${best.c.title}”.`);round++;if(round>6||cells.every(c=>c.owner)){end();return}if(!hand.length)hand=mix(pool.filter(c=>!cells.some(x=>x.card&&x.card.id===c.id))).slice(0,Math.min(4,open.length));if(!rhand.length)rhand=mix(rivals).slice(0,4);playerTurn=true;$("#turn").textContent="GILIRANMU";$("#hint").textContent="Pilih kartu, lalu pilih petak kosong.";render()}
-function end(){done=true;playerTurn=false;render();let{p,r}=counts();$("#mt").textContent="HASIL PERTANDINGAN";$("#mh").textContent=p>r?"Kamu memenangkan arena!":p<r?"Raka menguasai arena.":"Hasilnya seimbang!";$("#mb").textContent=`Kamu menguasai ${p} petak dan Raka ${r}. Coba hubungkan kartu pendapat, alasan, dan bukti pada permainan berikutnya.`;$("#ok").textContent="Main lagi ↻";$("#modal").showModal();say("Pertandingan selesai. Coba strategi baru untuk menghubungkan argumen.")}
-function start(){cells=Array.from({length:9},()=>({owner:null,card:null,power:0}));hand=mix(pool).slice(0,5);rhand=mix(rivals).slice(0,5);selected=null;round=1;playerTurn=true;done=false;$("#turn").textContent="GILIRANMU";$("#hint").textContent="Belum ada kartu yang dipilih.";$("#mt").textContent="PANDUAN SINGKAT";$("#mh").textContent="Cara bermain";$("#mb").textContent="Pilih kartu di tanganmu, lalu pilih petak kosong. Kartu yang temanya cocok mendapat bonus. Raka membalas setelah giliranmu. Kuasai petak sebanyak mungkin sampai ronde keenam.";$("#ok").textContent="Mengerti";say("Pertandingan dimulai. Pilih kartu untuk membuka langkah pertamamu.");render()}
-$("#help").onclick=()=>{$("#mt").textContent="PANDUAN SINGKAT";$("#mh").textContent="Cara bermain";$("#mb").textContent="Pilih kartu di tanganmu, lalu pilih petak kosong. Kartu yang temanya cocok mendapat bonus. Raka membalas setelah giliranmu. Kuasai petak sebanyak mungkin sampai ronde keenam." ;$("#ok").textContent="Mengerti";$("#modal").showModal()};
-$("#read").onclick=()=>{$("#mt").textContent="TEKS PEMANTIK";$("#mh").textContent="Membaca dan bermain";$("#mb").textContent="Membaca buku dapat menambah pengetahuan dan memperkaya kosakata. Bermain gim juga bisa menjadi hiburan, tetapi bermain terlalu lama dapat membuat kita lupa waktu. Setiap orang boleh memiliki pendapat berbeda. Sampaikan alasan yang sesuai, gunakan informasi dari bacaan sebagai bukti, dan dengarkan orang lain dengan sopan." ;$("#ok").textContent="Kembali ke permainan";$("#modal").showModal()};
-$("#x").onclick=()=>$("#modal").close();$("#ok").onclick=()=>{let restart=$("#mt").textContent==="HASIL PERTANDINGAN";$("#modal").close();if(restart)start()};$("#restart").onclick=start;$("#pass").onclick=()=>{if(!playerTurn||done)return;selected=null;playerTurn=false;$("#turn").textContent="GILIRAN RAKA";say("Kamu melewati giliran. Raka mengambil kesempatan.");render();setTimeout(rivalMove,350)};start();
+
+const $ = (selector) => document.querySelector(selector);
+
+let cells = [];
+let hand = [];
+let rhand = [];
+let playerDeck = [];
+let rivalDeck = [];
+let selected = null;
+let round = 1;
+let playerTurn = true;
+let done = false;
+
+const catalog = [
+  [1, "Buku Teman", "Aku suka membaca buku.", "Membaca"],
+  [1, "Kelas Bersih", "Kelas harus bersih.", "Kebersihan"],
+  [1, "Teman Baik", "Kita harus baik kepada teman.", "Persahabatan"],
+  [1, "Pohon Hijau", "Pohon itu penting.", "Lingkungan"],
+  [1, "Tubuh Sehat", "Kita perlu berolahraga.", "Kesehatan"],
+
+  [2, "Waktu Membaca", "Aku ingin membaca setiap hari.", "Membaca"],
+  [2, "Buang Sampah", "Sampah harus dibuang ke tempatnya.", "Kebersihan"],
+  [2, "Saling Membantu", "Teman harus saling membantu.", "Persahabatan"],
+  [2, "Hemat Air", "Kita harus menghemat air.", "Lingkungan"],
+  [2, "Sarapan Pagi", "Aku ingin sarapan sebelum sekolah.", "Kesehatan"],
+
+  [3, "Perpustakaan", "Sekolah perlu memiliki perpustakaan.", "Membaca"],
+  [3, "Piket Kelas", "Semua siswa perlu ikut piket.", "Kebersihan"],
+  [3, "Tidak Mengejek", "Kita tidak boleh mengejek teman.", "Persahabatan"],
+  [3, "Tanam Pohon", "Kita sebaiknya menanam pohon.", "Lingkungan"],
+  [3, "Makanan Sehat", "Kita perlu makan sayur dan buah.", "Kesehatan"],
+
+  [4, "Ilmu Baru", "Membaca bermanfaat karena kita dapat mengetahui hal baru.", "Membaca"],
+  [4, "Kelas Nyaman", "Kelas perlu dibersihkan agar nyaman untuk belajar.", "Kebersihan"],
+  [4, "Kerja Sama", "Kita harus bekerja sama karena pekerjaan menjadi lebih ringan.", "Persahabatan"],
+  [4, "Air Bersih", "Kita perlu menjaga air karena semua makhluk hidup membutuhkannya.", "Lingkungan"],
+  [4, "Olahraga", "Olahraga penting karena membantu menjaga kesehatan tubuh.", "Kesehatan"],
+
+  [5, "Buku Pengetahuan", "Membaca buku pengetahuan membantu kita belajar karena buku memberikan informasi baru.", "Membaca"],
+  [5, "Sampah Terpilah", "Sampah sebaiknya dipilah karena beberapa jenis sampah dapat didaur ulang.", "Kebersihan"],
+  [5, "Berbagi", "Kita sebaiknya berbagi karena dapat membantu teman yang membutuhkan.", "Persahabatan"],
+  [5, "Pohon Peneduh", "Kita perlu menanam pohon karena pohon memberi keteduhan dan membantu menjaga lingkungan.", "Lingkungan"],
+  [5, "Sarapan Bergizi", "Sarapan bergizi penting karena tubuh memerlukan energi untuk beraktivitas.", "Kesehatan"],
+
+  [6, "Rajin Membaca", "Membaca rutin menambah pengetahuan karena kita menemukan informasi dan gagasan baru.", "Membaca"],
+  [6, "Tanggung Jawab", "Setiap siswa perlu menjaga kelas karena kebersihan bukan hanya tugas petugas piket.", "Kebersihan"],
+  [6, "Mendengarkan", "Kita harus mendengarkan pendapat teman karena setiap orang dapat memiliki pandangan berbeda.", "Persahabatan"],
+  [6, "Menghemat Air", "Kita perlu menghemat air agar persediaan air bersih cukup untuk kebutuhan bersama.", "Lingkungan"],
+  [6, "Cuci Tangan", "Kita perlu mencuci tangan dengan sabun karena tangan dapat membawa kotoran dan kuman.", "Kesehatan"],
+
+  [7, "Kebiasaan Membaca", "Siswa perlu membiasakan membaca karena membaca menambah pengetahuan. Buku tentang hewan, misalnya, mengajarkan tempat hidup dan makanan hewan.", "Membaca"],
+  [7, "Kelas Sehat", "Kelas harus dijaga kebersihannya agar nyaman. Karena itu, siswa perlu membuang sampah pada tempatnya.", "Kebersihan"],
+  [7, "Menghargai Perbedaan", "Kita harus menghargai perbedaan karena setiap teman memiliki kesukaan dan kemampuan berbeda. Dengan begitu, kita bisa belajar bersama.", "Persahabatan"],
+  [7, "Menjaga Pohon", "Pohon perlu dirawat karena membantu membuat lingkungan lebih sejuk. Pohon di halaman sekolah, misalnya, dapat menjadi tempat berteduh.", "Lingkungan"],
+  [7, "Kebiasaan Sehat", "Kita perlu menjaga kesehatan agar bisa belajar dan bermain. Caranya antara lain makan bergizi, berolahraga, dan cukup tidur.", "Kesehatan"],
+
+  [8, "Membaca dan Berpikir", "Membaca rutin membantu kita memahami gagasan baru. Setelah membaca cerita, misalnya, kita dapat menjelaskan sifat tokoh dan alasan tindakannya.", "Membaca"],
+  [8, "Pengelolaan Sampah", "Sekolah perlu mengelola sampah agar lingkungan nyaman. Sampah organik seperti daun dapat dijadikan kompos untuk menyuburkan tanaman.", "Kebersihan"],
+  [8, "Menyelesaikan Masalah", "Masalah dengan teman sebaiknya dibicarakan karena bertengkar tidak membantu kita memahami masalah. Dengan saling mendengarkan, kita bisa mencari jalan keluar.", "Persahabatan"],
+  [8, "Hemat Energi", "Kita perlu menghemat listrik agar energi tidak digunakan berlebihan. Lampu dan kipas dapat dimatikan saat ruangan tidak digunakan.", "Lingkungan"],
+  [8, "Makanan Beragam", "Kita perlu makan beragam makanan karena tubuh membutuhkan berbagai zat gizi. Nasi memberi energi, sedangkan telur, sayur, dan buah memberi zat gizi berbeda.", "Kesehatan"],
+
+  [9, "Budaya Literasi", "Sekolah perlu membangun kebiasaan membaca karena memahami informasi membantu siswa belajar. Setelah membaca buku, siswa dapat menceritakan kembali isinya dengan kata-kata sendiri.", "Membaca"],
+  [9, "Sekolah Bebas Sampah", "Kebersihan sekolah adalah tanggung jawab bersama. Membawa tempat minum, membuang sampah dengan benar, dan menjalankan piket membantu menjaga sekolah tetap bersih.", "Kebersihan"],
+  [9, "Adil kepada Semua", "Semua teman perlu mendapat kesempatan bermain agar merasa diterima. Saat bermain kelompok, kita bisa bergiliran memilih anggota supaya tidak ada yang selalu tersisih.", "Persahabatan"],
+  [9, "Menjaga Sumber Air", "Sumber air harus dijaga karena manusia, hewan, dan tumbuhan memerlukan air bersih. Sampah di sungai dapat mencemari air, sehingga sampah perlu dibuang pada tempatnya.", "Lingkungan"],
+  [9, "Hidup Seimbang", "Kesehatan tidak cukup dijaga dengan olahraga saja. Tubuh juga membutuhkan makanan bergizi, tidur cukup, dan kebersihan diri agar kita dapat beraktivitas dengan baik.", "Kesehatan"]
+];
+
+function shuffle(array) {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function createDeck(owner) {
+  return shuffle(catalog.map((item, index) => ({
+    id: `${owner}-${index}`,
+    power: item[0],
+    title: item[1],
+    text: item[2],
+    topic: item[3]
+  })));
+}
+
+function say(message) {
+  $("#log").textContent = message;
+}
+
+function counts() {
+  const p = cells.filter(cell => cell.owner === "p").length;
+  const r = cells.filter(cell => cell.owner === "r").length;
+
+  $("#ps").textContent = `${p} petak`;
+  $("#rs").textContent = `${r} petak`;
+
+  return { p, r };
+}
+
+function drawHand(owner) {
+  const deck = owner === "p" ? playerDeck : rivalDeck;
+  const current = owner === "p" ? hand : rhand;
+
+  while (current.length < 5 && deck.length > 0) {
+    current.push(deck.shift());
+  }
+}
+
+function hasLegalMove(owner) {
+  const currentHand = owner === "p" ? hand : rhand;
+
+  if (currentHand.length === 0) return false;
+
+  return cells.some(cell =>
+    cell.owner === null ||
+    cell.owner === (owner === "p" ? "r" : "p")
+  );
+}
+
+function finishIfNeeded() {
+  const playerCanMove = hasLegalMove("p");
+  const rivalCanMove = hasLegalMove("r");
+
+  const allCardsUsed =
+    hand.length === 0 &&
+    rhand.length === 0 &&
+    playerDeck.length === 0 &&
+    rivalDeck.length === 0;
+
+  if (allCardsUsed || (!playerCanMove && !rivalCanMove)) {
+    end();
+    return true;
+  }
+
+  return false;
+}
+
+function render() {
+  const board = $("#board");
+  board.innerHTML = "";
+
+  cells.forEach((cell, index) => {
+    const button = document.createElement("button");
+    button.className = "cell" +
+      (cell.owner === "p" ? " player" :
+       cell.owner === "r" ? " rival" : "");
+
+    button.disabled =
+      !playerTurn || done || selected === null ||
+      cell.owner === "p";
+
+    if (cell.owner) {
+      button.innerHTML = `
+        <span class="ct">KEKUATAN ${cell.card.power}</span>
+        <strong class="ctitle">${cell.card.title}</strong>
+        <span class="ctext">${cell.card.text}</span>
+        <span class="owner">${cell.owner === "p" ? "KAMU" : "RAKA"}</span>
+      `;
+    } else {
+      button.innerHTML = `
+        <small>PETAK ${String(index + 1).padStart(2, "0")}</small>
+        <span class="ct">KOSONG</span>
+      `;
+    }
+
+    button.onclick = () => play(index);
+    board.appendChild(button);
+  });
+
+  const area = $("#hand");
+  area.innerHTML = "";
+
+  hand.forEach((card, index) => {
+    const button = document.createElement("button");
+    button.className = "card" +
+      (selected === index ? " sel" : "");
+    button.disabled = !playerTurn || done;
+
+    button.innerHTML = `
+      <span class="badge">${card.topic.toUpperCase()}</span>
+      <span class="symbol">${card.power}</span>
+      <strong>${card.title}</strong>
+      <p>${card.text}</p>
+      <span class="power">KEKUATAN ${card.power}/9</span>
+    `;
+
+    button.onclick = () => {
+      selected = selected === index ? null : index;
+      $("#hint").textContent = selected === null
+        ? "Pilih kartu untuk memulai."
+        : `Kartu "${card.title}" berkekuatan ${card.power}. Pilih petak kosong atau kartu Raka untuk diserang.`;
+      render();
+    };
+
+    area.appendChild(button);
+  });
+
+  counts();
+  $("#round").textContent = round;
+}
+
+function play(index) {
+  if (selected === null || !playerTurn || done) return;
+
+  const card = hand[selected];
+  const target = cells[index];
+
+  if (target.owner === "p") return;
+
+  hand.splice(selected, 1);
+  selected = null;
+
+  if (!target.owner) {
+    cells[index] = { owner: "p", card };
+    say(`Kamu menempatkan "${card.title}" dengan kekuatan ${card.power}.`);
+  } else if (card.power > target.card.power) {
+    say(`Berhasil! "${target.card.title}" milik Raka dikalahkan.`);
+    cells[index] = { owner: "p", card };
+  } else if (card.power < target.card.power) {
+    say(`Serangan gagal. "${card.title}" dibuang; kartu Raka tetap bertahan.`);
+  } else {
+    say("Kekuatan sama! Kedua kartu dibuang dan petak menjadi kosong.");
+    cells[index] = { owner: null, card: null };
+  }
+
+  playerTurn = false;
+  render();
+
+  if (finishIfNeeded()) return;
+
+  $("#turn").textContent = "GILIRAN RAKA";
+  $("#hint").textContent = "Raka sedang menyusun langkah...";
+  setTimeout(rivalMove, 500);
+}
+
+function rivalMove() {
+  if (done) return;
+
+  drawHand("r");
+
+  const moves = [];
+
+  rhand.forEach((card, handIndex) => {
+    cells.forEach((cell, targetIndex) => {
+      if (cell.owner === "r") return;
+
+      let score = Math.random() * 3;
+
+      if (!cell.owner) {
+        score += card.power * 1.5;
+      } else if (card.power > cell.card.power) {
+        score += 12 + card.power - cell.card.power;
+      } else if (card.power === cell.card.power) {
+        score += 2;
+      } else {
+        score -= cell.card.power - card.power;
+      }
+
+      moves.push({
+        card,
+        handIndex,
+        targetIndex,
+        score
+      });
+    });
+  });
+
+  if (moves.length === 0) {
+    drawHand("p");
+    drawHand("r");
+
+    if (finishIfNeeded()) return;
+
+    playerTurn = true;
+    $("#turn").textContent = "GILIRANMU";
+    $("#hint").textContent =
+      "Raka tidak memiliki langkah yang sah. Pilih langkahmu.";
+    render();
+    return;
+  }
+
+  moves.sort((a, b) => b.score - a.score);
+
+  const move = moves[0];
+  const card = move.card;
+  const target = cells[move.targetIndex];
+
+  rhand.splice(move.handIndex, 1);
+
+  if (!target.owner) {
+    cells[move.targetIndex] = { owner: "r", card };
+    say(`Raka menempatkan "${card.title}" dengan kekuatan ${card.power}.`);
+  } else if (card.power > target.card.power) {
+    cells[move.targetIndex] = { owner: "r", card };
+    say(`Raka mengalahkan "${target.card.title}" milikmu.`);
+  } else if (card.power < target.card.power) {
+    say(`Serangan Raka gagal. Kartu "${card.title}" dibuang.`);
+  } else {
+    cells[move.targetIndex] = { owner: null, card: null };
+    say("Kekuatan sama! Kedua kartu dibuang.");
+  }
+
+  round++;
+  drawHand("p");
+  drawHand("r");
+
+  if (finishIfNeeded()) return;
+
+  playerTurn = true;
+  $("#turn").textContent = "GILIRANMU";
+  $("#hint").textContent = "Pilih kartu, lalu pilih petak.";
+  render();
+}
+
+function end() {
+  done = true;
+  playerTurn = false;
+  render();
+
+  const { p, r } = counts();
+
+  $("#mt").textContent = "HASIL PERTANDINGAN";
+  $("#mh").textContent =
+    p > r ? "Kamu memenangkan arena!" :
+    p < r ? "Raka menguasai arena." :
+    "Pertandingan berakhir seri!";
+
+  $("#mb").textContent =
+    `Kamu menguasai ${p} petak, sedangkan Raka ${r} petak.`;
+
+  $("#ok").textContent = "Main lagi ↻";
+  $("#modal").showModal();
+  say("Pertandingan selesai.");
+}
+
+function start() {
+  cells = Array.from({ length: 9 }, () => ({
+    owner: null,
+    card: null
+  }));
+
+  playerDeck = createDeck("p");
+  rivalDeck = createDeck("r");
+
+  hand = playerDeck.splice(0, 5);
+  rhand = rivalDeck.splice(0, 5);
+
+  selected = null;
+  round = 1;
+  playerTurn = true;
+  done = false;
+
+  $("#turn").textContent = "GILIRANMU";
+  $("#hint").textContent = "Pilih kartu untuk memulai.";
+  $("#mt").textContent = "PANDUAN SINGKAT";
+  $("#mh").textContent = "Cara bermain";
+  $("#mb").textContent =
+    "Pilih kartu, lalu pilih petak kosong untuk menempatkannya atau petak Raka untuk menyerang. Kekuatan lebih tinggi menang. Jika lebih rendah, kartu penyerang dibuang. Jika sama, kedua kartu dibuang. Kartu yang kalah tidak kembali ke tangan.";
+  $("#ok").textContent = "Mengerti";
+
+  say("Pertandingan dimulai. Pilih kartu pertamamu.");
+  render();
+}
+
+function showMenu() {
+  $("#main-menu").hidden = false;
+  $("#game-screen").hidden = true;
+}
+
+function showGame() {
+  $("#main-menu").hidden = true;
+  $("#game-screen").hidden = false;
+}
+
+$("#start-game").onclick = () => {
+  showGame();
+  start();
+};
+
+$("#open-tutorial").onclick = () => {
+  $("#mt").textContent = "TUTORIAL";
+  $("#mh").textContent = "Cara bermain";
+  $("#mb").textContent =
+    "Setiap pemain memiliki 5 kartu di tangan. Kekuatan kartu berkisar dari 1 sampai 9. Pilih kartu dan petak tujuan. Kartu yang lebih kuat mengalahkan kartu lawan; kartu yang kalah dibuang. Pemain dengan petak terbanyak saat permainan berakhir menang.";
+  $("#ok").textContent = "Mengerti";
+  $("#modal").showModal();
+};
+
+$("#open-settings").onclick = () => {
+  $("#mt").textContent = "PENGATURAN";
+  $("#mh").textContent = "Pengaturan permainan";
+  $("#mb").textContent =
+    "Pengaturan tambahan akan dikembangkan pada tahap berikutnya.";
+  $("#ok").textContent = "Kembali";
+  $("#modal").showModal();
+};
+
+$("#help").onclick = () => {
+  $("#mt").textContent = "PANDUAN SINGKAT";
+  $("#mh").textContent = "Menang dengan argumen";
+  $("#mb").textContent =
+    "Kekuatan kartu adalah nilai permainan, bukan ukuran kebenaran pendapat. Bacalah isi kartu dan pertimbangkan argumennya sebelum memilih langkah.";
+  $("#ok").textContent = "Mengerti";
+  $("#modal").showModal();
+};
+
+$("#read").onclick = () => {
+  $("#mt").textContent = "TEKS PEMANTIK";
+  $("#mh").textContent = "Membaca dan bermain";
+  $("#mb").textContent =
+    "Membaca dapat menambah pengetahuan. Bermain juga dapat melatih strategi, tetapi waktu perlu diatur. Sampaikan pendapat dengan alasan yang jelas, periksa informasi, dan dengarkan orang lain dengan sopan.";
+  $("#ok").textContent = "Kembali ke permainan";
+  $("#modal").showModal();
+};
+
+$("#x").onclick = () => $("#modal").close();
+
+$("#ok").onclick = () => {
+  const restart = $("#mt").textContent === "HASIL PERTANDINGAN";
+  $("#modal").close();
+
+  if (restart) start();
+};
+
+$("#restart").onclick = start;
+
+$("#pass").onclick = () => {
+  if (!playerTurn || done) return;
+
+  selected = null;
+  playerTurn = false;
+  $("#turn").textContent = "GILIRAN RAKA";
+  say("Kamu melewati giliran.");
+  render();
+
+  setTimeout(rivalMove, 350);
+};
+
+showMenu();
